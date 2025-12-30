@@ -1,6 +1,6 @@
 """
 RevStaff Full Funnel Metrics Dashboard
-Streamlit app for viewing interactive SQL funnel charts
+Streamlit app with card-based navigation
 """
 
 import streamlit as st
@@ -13,95 +13,171 @@ st.set_page_config(
     layout="wide"
 )
 
-# Chart definitions
-CHARTS = {
-    "View 1: Volume Overview": {
-        "1.3 SQL Volume by Source by Month": "chart-1-sqls-by-source.html"
-    },
-    "View 2: Rep Performance": {
-        "2.0 Total SQLs per Rep per Month": "chart-3-total-sqls-per-rep.html",
-        "2.1 Prospecting + Conference Distribution": "chart-2-overall-distribution.html",
-        "2.2 Per-Rep Distribution Comparison": "chart-4-by-rep-distribution.html",
-        "Rep-Level Boxplots": "chart-view2-by-rep-boxplots.html"
-    },
-    "View 2.3-2.4: Account Tier": {
-        "2.3 Tier 1 Prospecting": "chart-5-t1-prospecting.html",
-        "2.4 Non-Tier 1 Prospecting": "chart-6-non-t1-prospecting.html",
-        "Tier 1 vs Non-Tier 1 by Month": "chart-t1-by-month.html",
-        "Tier 1 vs Non-Tier 1 per Rep": "chart-t1-per-rep.html"
-    },
-    "View 2.5-2.8: By Source": {
-        "2.5 Conference Distribution": "chart-7-conference-distribution.html",
-        "2.7 Demo Request (Inbound)": "chart-9-demo-request.html",
-        "2.8 Referrals": "chart-10-referrals.html"
-    }
+# Chart definitions organized by section
+SECTIONS = {
+    "View 1: Volume Overview": [
+        {
+            "id": "1.3",
+            "title": "SQL Volume by Source by Month",
+            "desc": "Stacked bar chart showing monthly SQL breakdown by source: Prospecting, Demo Request, Conference, Referral, Other",
+            "tag": "Stacked Bar",
+            "file": "chart-1-sqls-by-source.html"
+        }
+    ],
+    "View 2: Rep Performance Distributions": [
+        {
+            "id": "2.0",
+            "title": "Total SQLs per Rep per Month",
+            "desc": "Box plot showing distribution of all SQLs per ramped rep per month with TARGET: 15 reference line",
+            "tag": "Box + Strip Plot",
+            "file": "chart-3-total-sqls-per-rep.html"
+        },
+        {
+            "id": "2.1",
+            "title": "Prospecting + Conference Distribution",
+            "desc": "Box plot showing distribution of rep-driven SQLs (Prospecting + Conference) per ramped rep per month",
+            "tag": "Box + Strip Plot",
+            "file": "chart-2-overall-distribution.html"
+        },
+        {
+            "id": "2.2",
+            "title": "Per-Rep Distribution Comparison",
+            "desc": "Side-by-side box plots showing SQL distribution by individual rep for consistency analysis",
+            "tag": "Multi-Box Plot",
+            "file": "chart-4-by-rep-distribution.html"
+        },
+        {
+            "id": "2.x",
+            "title": "Rep-Level Boxplots",
+            "desc": "Alternative view of per-rep distributions sorted by median performance",
+            "tag": "Multi-Box Plot",
+            "file": "chart-view2-by-rep-boxplots.html"
+        }
+    ],
+    "View 2.3-2.4: Prospecting by Account Tier": [
+        {
+            "id": "2.3",
+            "title": "Tier 1 Prospecting",
+            "desc": "Distribution of SQLs from prospecting against Tier 1 accounts per ramped rep per month",
+            "tag": "Box + Strip Plot",
+            "file": "chart-5-t1-prospecting.html"
+        },
+        {
+            "id": "2.4",
+            "title": "Non-Tier 1 Prospecting",
+            "desc": "Distribution of SQLs from prospecting against non-Tier 1 accounts per ramped rep per month",
+            "tag": "Box + Strip Plot",
+            "file": "chart-6-non-t1-prospecting.html"
+        },
+        {
+            "id": "T1",
+            "title": "Tier 1 vs Non-Tier 1 by Month",
+            "desc": "Monthly comparison of T1 vs non-T1 SQL volume across all sources",
+            "tag": "Stacked Bar",
+            "file": "chart-t1-by-month.html"
+        },
+        {
+            "id": "T1",
+            "title": "Tier 1 vs Non-Tier 1 per Rep",
+            "desc": "Per-rep breakdown of T1 vs non-T1 SQLs for the year",
+            "tag": "Stacked Bar",
+            "file": "chart-t1-per-rep.html"
+        }
+    ],
+    "View 2.5-2.8: By Source Type": [
+        {
+            "id": "2.5",
+            "title": "Conference Distribution",
+            "desc": "Distribution of Conference SQLs per rep per conference event",
+            "tag": "Box + Strip Plot",
+            "file": "chart-7-conference-distribution.html"
+        },
+        {
+            "id": "2.7",
+            "title": "Demo Request (Inbound)",
+            "desc": "Monthly team total of inbound Demo Request SQLs - marketing-driven baseline",
+            "tag": "Box + Strip Plot",
+            "file": "chart-9-demo-request.html"
+        },
+        {
+            "id": "2.8",
+            "title": "Referrals",
+            "desc": "Monthly team total of Referral SQLs - highest conversion rate (34.5%)",
+            "tag": "Box + Strip Plot",
+            "file": "chart-10-referrals.html"
+        }
+    ]
 }
 
-# Get charts directory (relative to app.py)
+# Get charts directory
 CHARTS_DIR = Path(__file__).parent / "charts"
 
 def load_chart_html(filename):
     """Load HTML content from chart file"""
     filepath = CHARTS_DIR / filename
     if filepath.exists():
-        return filepath.read_text()
+        content = filepath.read_text()
+        # Remove the back navigation header (Streamlit has its own)
+        if 'Back to Dashboard' in content:
+            start = content.find('<div style="font-family: Inter')
+            if start != -1:
+                end = content.find('</div>', start) + 6
+                content = content[:start] + content[end:]
+        return content
     return f"<p>Chart not found: {filename}</p>"
 
-# Sidebar
-st.sidebar.title("📊 RevStaff Metrics")
-st.sidebar.markdown("**2025 Performance Analysis**")
-st.sidebar.markdown("Data through Dec 29 | n=416 SQLs")
-st.sidebar.divider()
+# Initialize session state
+if 'current_chart' not in st.session_state:
+    st.session_state.current_chart = None
 
-# Build flat list for selection
-all_charts = []
-for section, charts in CHARTS.items():
-    for chart_name, filename in charts.items():
-        all_charts.append((section, chart_name, filename))
+def show_homepage():
+    """Display the card-based navigation homepage"""
+    st.title("📊 RevStaff Full Funnel Metrics")
+    st.caption("2025 Performance Analysis | Data through Dec 29, 2025 | n=416 SQLs")
 
-# Section filter
-sections = list(CHARTS.keys())
-selected_section = st.sidebar.selectbox("Section", ["All"] + sections)
+    for section_name, charts in SECTIONS.items():
+        st.markdown(f"#### {section_name}")
 
-# Filter charts by section
-if selected_section == "All":
-    filtered_charts = all_charts
-else:
-    filtered_charts = [(s, n, f) for s, n, f in all_charts if s == selected_section]
+        # Create columns for cards
+        num_charts = len(charts)
+        cols = st.columns(min(num_charts, 3))
 
-# Chart selector
-chart_names = [name for _, name, _ in filtered_charts]
-selected_chart_name = st.sidebar.selectbox("Chart", chart_names)
+        for i, chart in enumerate(charts):
+            with cols[i % 3]:
+                # Create a card-like container
+                with st.container(border=True):
+                    st.markdown(f"**{chart['id']} {chart['title']}**")
+                    st.caption(chart['desc'])
+                    st.markdown(f"`{chart['tag']}`")
+                    if st.button("View →", key=chart['file'], use_container_width=True):
+                        st.session_state.current_chart = chart
+                        st.rerun()
 
-# Find the selected chart
-selected_chart = next((c for c in filtered_charts if c[1] == selected_chart_name), None)
+        st.markdown("")  # Spacing between sections
 
-st.sidebar.divider()
-st.sidebar.markdown("*Cohort Month methodology*")
-st.sidebar.markdown("[View source data →](https://github.com/baoyama/medscout-gtm)")
-
-# Main content
-if selected_chart:
-    section, chart_name, filename = selected_chart
+def show_chart(chart):
+    """Display a single chart with back navigation"""
+    # Back button
+    col1, col2 = st.columns([1, 11])
+    with col1:
+        if st.button("← Back"):
+            st.session_state.current_chart = None
+            st.rerun()
 
     # Header
-    st.markdown(f"### {chart_name}")
-    st.caption(f"{section}")
+    st.markdown(f"### {chart['id']} {chart['title']}")
+    st.caption(chart['desc'])
 
     # Load and display chart
-    html_content = load_chart_html(filename)
+    html_content = load_chart_html(chart['file'])
+    st.components.v1.html(html_content, height=650, scrolling=True)
 
-    # Remove the navigation header we added (since Streamlit has its own nav)
-    # Find and remove the div with "Back to Dashboard"
-    if 'Back to Dashboard' in html_content:
-        # Simple removal of the nav div
-        start = html_content.find('<div style="font-family: Inter')
-        if start != -1:
-            end = html_content.find('</div>', start) + 6
-            html_content = html_content[:start] + html_content[end:]
-
-    # Display with appropriate height
-    st.components.v1.html(html_content, height=600, scrolling=True)
-
+# Main app logic
+if st.session_state.current_chart is None:
+    show_homepage()
 else:
-    st.info("Select a chart from the sidebar")
+    show_chart(st.session_state.current_chart)
+
+# Footer
+st.divider()
+st.caption("RevStaff Full Funnel Metrics | HubSpot export Dec 29, 2025 | Cohort Month methodology")
